@@ -1,0 +1,58 @@
+# Ubuntu 26.04 "Resolute" dev/test container
+# Usage:
+#   UID=$(id -u) GID=$(id -g) docker compose up -d --build
+#   docker compose exec dev bash
+#   docker compose down            # stop (volumes persist)
+#   docker compose down -v         # stop and wipe home/cache volumes
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: ubuntu:resolute
+        USERNAME: dev
+        USER_UID: ${UID:-1000}
+        USER_GID: ${GID:-1000}
+    image: ubuntu-dev:resolute
+    container_name: ubuntu-dev
+    hostname: ubuntu-dev
+    init: true                 # reaps zombie processes from test runs
+    tty: true
+    stdin_open: true
+    command: sleep infinity    # keep the container alive for exec sessions
+    working_dir: /workspace
+    environment:
+      TZ: America/Chicago
+      LANG: C.UTF-8
+    volumes:
+      - ./workspace:/workspace           # your app source, edited on the host
+      - dev-home:/home/dev               # shell history, dotfiles, tool caches
+    ports:
+      - "3000:3000"   # web/node
+      - "5000:5000"   # flask etc.
+      - "8000:8000"   # django/fastapi
+      - "8080:8080"   # generic
+    # Uncomment to cap resources so tests reflect a smaller machine
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "2"
+    #       memory: 4g
+    restart: unless-stopped
+
+  # A throwaway, pristine Ubuntu for "does it work on a clean install?" tests.
+  # Runs only when asked:  docker compose run --rm clean
+  clean:
+    image: ubuntu:resolute
+    profiles: ["clean"]
+    working_dir: /workspace
+    volumes:
+      - ./workspace:/workspace:ro
+    command: bash
+    tty: true
+    stdin_open: true
+
+volumes:
+  dev-home:

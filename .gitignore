@@ -10,6 +10,9 @@ screenshots/
 *.report.json
 summary.md
 
+# Harness/Private
+.pi/
+
 # OS junk
 .DS_Store
 Thumbs.db

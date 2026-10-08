@@ -8,6 +8,17 @@
 set -u
 cd "$(dirname "$0")"
 
+# Load environment variables from .env if it exists
+if [ -f .env ]; then
+    while IFS='=' read -r key value || [ -n "$key" ]; do
+        # Skip comments and empty lines
+        [[ "$key" =~ ^#.*$ ]] || [ -z "$key" ] && continue
+        # Remove potential carriage returns from Windows-style files
+        value=$(echo "$value" | tr -d '\r')
+        export "$key=$value"
+    done < .env
+fi
+
 DEVICE="${ADB_DEVICE:-192.168.240.112:5555}"
 APP_PACKAGE="com.facebook.katana"
 SHOT_DIR="./screenshots/runs"
