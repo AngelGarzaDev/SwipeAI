@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Data & Logs
+execution_log.md
+screenshots/
+**/screenshots/
+*.report.json
+summary.md
+
+# OS junk
+.DS_Store
+Thumbs.db
