@@ -36,7 +36,8 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-ADB="adb -s $DEVICE"
+# Every adb call is wrapped in a timeout so a hung device fails fast instead of blocking forever.
+ADB="timeout 20 adb -s $DEVICE"
 RUN_ID="run_$(date +%Y%m%d_%H%M%S)"
 RUN_DIR="$SHOT_DIR/$RUN_ID"
 mkdir -p "$RUN_DIR/nav"
@@ -45,31 +46,50 @@ log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG_FILE"; }
 capture() { $ADB exec-out screencap -p > "$1"; }
 vet() { python3 vet_profile.py "$1" 2>&1 | tee -a "$LOG_FILE" | tail -n 1; }
 
+# Is the ADB device listed as online ('device' state)?
+device_ready() {
+    $ADB devices | awk -v d="$DEVICE" '$1 == d && $2 == "device" {ok=1} END {exit !ok}'
+}
+
+# WAYDROID_MODE=1: make sure the Waydroid session is running and ADB can reach it.
+# The container must be started manually as root (see README: sudo waydroid container start).
 start_waydroid() {
-    if [ "$WAYDROID_MODE" = "1" ]; then
-        log "Waydroid mode enabled. Attempting to start Waydroid session..."
-        if ! command -v waydroid &> /dev/null; then
-            log "ERROR: 'waydroid' command not found. Please install Waydroid."
-            exit 1
-        fi
-        log "Starting Waydroid session..."
-        waydroid session start & >/dev/null 2>&1
-        log "Waiting for Waydroid to initialize..."
-        for i in {1..30}; do
-            if $ADB devices | grep -q "$DEVICE.*device"; then
-                log "Waydroid is ready!"
-                return 0
-            fi
-            sleep 1
-        done
-        log "ERROR: Waydroid failed to start or device not found after 30s."
+    [ "$WAYDROID_MODE" = "1" ] || return 0
+    if device_ready; then log "Waydroid device $DEVICE already ready"; return 0; fi
+    if ! command -v waydroid >/dev/null 2>&1; then
+        log "ERROR: 'waydroid' not found on PATH. Install Waydroid or set WAYDROID_MODE=0."
         exit 1
     fi
+    if [ "$(waydroid status 2>/dev/null | awk '/^Session:/ {print $2}')" != "RUNNING" ]; then
+        log "Starting Waydroid session (background)"
+        waydroid session start >/dev/null 2>&1 &
+    fi
+    for i in $(seq 1 30); do
+        $ADB connect "$DEVICE" >/dev/null 2>&1
+        if device_ready; then log "Waydroid ready at $DEVICE"; return 0; fi
+        sleep 1
+    done
+    log "ERROR: $DEVICE not ready after 30s. Check 'waydroid status' (container must be running: sudo waydroid container start)."
+    exit 1
 }
 
 log "=== Facebook Dating workflow start ($RUN_ID, swipe=$SWIPE count=$COUNT) ==="
 start_waydroid
 $ADB connect "$DEVICE" >/dev/null 2>&1
+
+# Pre-flight: fail fast (10s timeout) if the LLM server is down, before touching the phone.
+check_llm() {
+    [ "${LLM_ENABLED:-1}" = 0 ] && return 0
+    local url="${LLM_URL:-http://192.168.1.110:9931/v1}"
+    local model="${LLM_MODEL:-gemma-4-26B-A4B-it}"
+    if curl -s -m 10 "$url/models" | grep -qF "\"$model\""; then
+        log "LLM reachable at $url ($model)"
+        return 0
+    fi
+    log "ERROR: LLM $model not reachable at $url (10s check). Start the server and retry."
+    exit 1
+}
+check_llm
 
 # Lock the display to a fixed portrait size so screenshots/templates are consistent.
 # Restored on exit unless KEEP_DISPLAY=1.
