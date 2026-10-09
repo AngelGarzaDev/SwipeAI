@@ -36,7 +36,8 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-ADB="adb -s $DEVICE"
+# Every adb call is wrapped in a timeout so a hung device fails fast instead of blocking forever.
+ADB="timeout 20 adb -s $DEVICE"
 RUN_ID="run_$(date +%Y%m%d_%H%M%S)"
 RUN_DIR="$SHOT_DIR/$RUN_ID"
 mkdir -p "$RUN_DIR/nav"

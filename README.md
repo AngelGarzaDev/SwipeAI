@@ -49,7 +49,7 @@ The pipeline operates in a continuous loop:
 * A local LLM server (e.g., `llama.cpp` serving a vision model).
 
 ### Waydroid (manual setup)
-The script does **not** start the Waydroid container (it needs root). If you use Waydroid, start it yourself before running the workflow:
+**If you use Waydroid, open it before running the script.** The script does **not** start the Waydroid container (it needs root). Start it yourself first:
 ```bash
 sudo waydroid container start
 waydroid session start            # needs a graphical session
