@@ -20,6 +20,7 @@ if [ -f .env ]; then
 fi
 
 DEVICE="${ADB_DEVICE:-192.168.240.112:5555}"
+WAYDROID_MODE="${WAYDROID_MODE:-0}"
 APP_PACKAGE="com.facebook.katana"
 SHOT_DIR="./screenshots/runs"
 LOG_FILE="./execution_log.md"
@@ -44,7 +45,30 @@ log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG_FILE"; }
 capture() { $ADB exec-out screencap -p > "$1"; }
 vet() { python3 vet_profile.py "$1" 2>&1 | tee -a "$LOG_FILE" | tail -n 1; }
 
+start_waydroid() {
+    if [ "$WAYDROID_MODE" = "1" ]; then
+        log "Waydroid mode enabled. Attempting to start Waydroid session..."
+        if ! command -v waydroid &> /dev/null; then
+            log "ERROR: 'waydroid' command not found. Please install Waydroid."
+            exit 1
+        fi
+        log "Starting Waydroid session..."
+        waydroid session start & >/dev/null 2>&1
+        log "Waiting for Waydroid to initialize..."
+        for i in {1..30}; do
+            if $ADB devices | grep -q "$DEVICE.*device"; then
+                log "Waydroid is ready!"
+                return 0
+            fi
+            sleep 1
+        done
+        log "ERROR: Waydroid failed to start or device not found after 30s."
+        exit 1
+    fi
+}
+
 log "=== Facebook Dating workflow start ($RUN_ID, swipe=$SWIPE count=$COUNT) ==="
+start_waydroid
 $ADB connect "$DEVICE" >/dev/null 2>&1
 
 # Lock the display to a fixed portrait size so screenshots/templates are consistent.
