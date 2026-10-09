@@ -48,6 +48,16 @@ The pipeline operates in a continuous loop:
 * An Android device or emulator (e.g., Waydroid) running Facebook Dating.
 * A local LLM server (e.g., `llama.cpp` serving a vision model).
 
+### Waydroid (manual setup)
+The script does **not** start the Waydroid container (it needs root). If you use Waydroid, start it yourself before running the workflow:
+```bash
+sudo waydroid container start
+waydroid session start            # needs a graphical session
+waydroid status                   # Container should be RUNNING, not FROZEN
+adb connect <ADB_DEVICE>          # e.g. 192.168.240.112:5555
+```
+Then set `WAYDROID_MODE=1` in `.env`. With this set, the script checks for the device, starts the session if it is not running, and waits up to 30 seconds for ADB. If the device still isn't ready it exits with an error. Set `WAYDROID_MODE=0` for a physical phone or emulator you manage yourself.
+
 ### Quick Start
 1. Clone the repository:
    ```bash
