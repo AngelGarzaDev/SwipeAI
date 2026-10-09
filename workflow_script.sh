@@ -77,6 +77,20 @@ log "=== Facebook Dating workflow start ($RUN_ID, swipe=$SWIPE count=$COUNT) ===
 start_waydroid
 $ADB connect "$DEVICE" >/dev/null 2>&1
 
+# Pre-flight: fail fast (10s timeout) if the LLM server is down, before touching the phone.
+check_llm() {
+    [ "${LLM_ENABLED:-1}" = 0 ] && return 0
+    local url="${LLM_URL:-http://192.168.1.110:9931/v1}"
+    local model="${LLM_MODEL:-gemma-4-26B-A4B-it}"
+    if curl -s -m 10 "$url/models" | grep -qF "\"$model\""; then
+        log "LLM reachable at $url ($model)"
+        return 0
+    fi
+    log "ERROR: LLM $model not reachable at $url (10s check). Start the server and retry."
+    exit 1
+}
+check_llm
+
 # Lock the display to a fixed portrait size so screenshots/templates are consistent.
 # Restored on exit unless KEEP_DISPLAY=1.
 SCREEN_SIZE="${SCREEN_SIZE:-1080x1920}"
