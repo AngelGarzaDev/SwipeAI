@@ -19,7 +19,6 @@ if [ -f .env ]; then
     done < .env
 fi
 
-DEVICE="${ADB_DEVICE:-192.168.240.112:5555}"
 WAYDROID_MODE="${WAYDROID_MODE:-0}"
 APP_PACKAGE="com.facebook.katana"
 SHOT_DIR="./screenshots/runs"
@@ -35,6 +34,57 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+# Choose the ADB device. Waydroid mode uses ADB_DEVICE (the Waydroid address).
+# Otherwise one online device is used automatically; with several, the user is asked every run
+# (ADB_DEVICE, if set, is the default choice).
+select_device() {
+    if [ "$WAYDROID_MODE" = "1" ]; then
+        if [ -z "${ADB_DEVICE:-}" ]; then
+            echo "ERROR: WAYDROID_MODE=1 requires ADB_DEVICE in .env (e.g. 192.168.240.112:5555)." >&2
+            exit 1
+        fi
+        DEVICE="$ADB_DEVICE"
+        return 0
+    fi
+    local serials=() labels=() serial state info model
+    while read -r serial state info; do
+        [ "$state" = "device" ] || continue
+        model=$(echo "$info" | sed -n 's/.*model:\([^ ]*\).*/\1/p')
+        serials+=("$serial")
+        labels+=("$serial  ${model:-unknown model}")
+    done < <(timeout 15 adb devices -l | tail -n +2)
+
+    if [ "${#serials[@]}" -eq 0 ]; then
+        echo "ERROR: no online ADB device. Connect a phone or start Waydroid, then check 'adb devices'." >&2
+        exit 1
+    fi
+    if [ "${#serials[@]}" -eq 1 ]; then
+        DEVICE="${serials[0]}"
+        echo "Using the only online ADB device: $DEVICE" >&2
+        return 0
+    fi
+    if [ ! -t 0 ]; then
+        echo "ERROR: several ADB devices are online and there is no terminal to ask. Run interactively." >&2
+        exit 1
+    fi
+
+    local default_idx=0 i choice
+    echo "Several ADB devices are online:" >&2
+    for i in "${!serials[@]}"; do
+        echo "  $((i + 1))) ${labels[$i]}" >&2
+        [ "${serials[$i]}" = "${ADB_DEVICE:-}" ] && default_idx=$i
+    done
+    read -r -p "Choose device [$((default_idx + 1))]: " choice
+    choice="${choice:-$((default_idx + 1))}"
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "${#serials[@]}" ]; then
+        echo "ERROR: invalid choice '$choice'." >&2
+        exit 1
+    fi
+    DEVICE="${serials[$((choice - 1))]}"
+    echo "Selected $DEVICE" >&2
+}
+select_device
 
 # Every adb call is wrapped in a timeout so a hung device fails fast instead of blocking forever.
 ADB="timeout 20 adb -s $DEVICE"
