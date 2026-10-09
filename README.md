@@ -58,6 +58,14 @@ adb connect <ADB_DEVICE>          # e.g. 192.168.240.112:5555
 ```
 Then set `WAYDROID_MODE=1` in `.env`. With this set, the script checks for the device, starts the session if it is not running, and waits up to 30 seconds for ADB. If the device still isn't ready it exits with an error. Set `WAYDROID_MODE=0` for a physical phone or emulator you manage yourself.
 
+### Choosing a device
+The script never assumes an address. Each run:
+- **One** online device in `adb devices`: it is used automatically.
+- **Several** online devices: a numbered menu asks which one to use. Enter picks the `ADB_DEVICE` default if set.
+- **Waydroid mode** (`WAYDROID_MODE=1`): uses `ADB_DEVICE` from `.env` and skips the menu. It is required in this mode.
+
+In a non-interactive run (no terminal) with several devices, the script exits with an error. Run it from a terminal, or use Waydroid mode.
+
 ### Quick Start
 1. Clone the repository:
    ```bash
