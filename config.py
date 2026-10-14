@@ -23,6 +23,8 @@ ENV_OVERRIDES = {
     "LLM_URL": ("llm", "url", str),
     "LLM_MODEL": ("llm", "model", str),
     "LLM_API_KEY": ("llm", "api_key", str),
+    "LLM_RETRIES": ("llm", "retries", int),
+    "LLM_RETRY_DELAY": ("llm", "retry_delay", float),
 }
 
 

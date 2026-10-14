@@ -64,6 +64,8 @@ Always include:
 ## Reference (read only if needed)
 - Decision order: buttons found → name/age/bio read → `[rules]` in `config.toml` → LLM → tap.
 - Profiles that fail a rule are disliked **without** asking the LLM. That is expected.
+- A failed LLM call is retried automatically (2 retries by default). `LLM unavailable/failed`
+  means every attempt failed. `LLM (…, N tries)` in the summary means it succeeded after retrying.
 - `KEEP_DISPLAY=1` keeps the phone at 1080x1920. To restore the normal screen afterwards:
   `adb shell wm size reset && adb shell wm density reset`
 - Full details: `README.md`.

@@ -32,9 +32,13 @@ not a stock/celebrity image). Prefer a friendly, genuine bio. Reject profiles \
 that look like spam, scams, or sex-work advertising."""
 image_max_side = 768
 temperature = 0.1
-timeout = 120
+timeout = 120                   # seconds per attempt
 max_tokens = 1024
-# What to do when the LLM fails: "skip" = don't tap and stop the run;
+# A failed call (timeout, connection error, server error, unreadable reply) is retried
+# this many times, waiting retry_delay seconds, then twice as long, and so on.
+retries = 2                     # env: LLM_RETRIES
+retry_delay = 5                 # env: LLM_RETRY_DELAY
+# What to do when every attempt fails: "skip" = don't tap and stop the run;
 # anything else = keep the rules-based decision.
 on_error = "skip"
 

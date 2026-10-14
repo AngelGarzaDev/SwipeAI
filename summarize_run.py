@@ -42,7 +42,8 @@ def main():
         counts[decision] = counts.get(decision, 0) + 1
         if "seconds" in llm:
             llm_times.append(llm["seconds"])
-            by = f"LLM ({llm['seconds']:.1f}s)"
+            tries = f", {llm['attempts']} tries" if llm.get("attempts", 1) > 1 else ""
+            by = f"LLM ({llm['seconds']:.1f}s{tries})"
         elif "error" in llm:
             by = "LLM error"
         else:

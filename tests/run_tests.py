@@ -5,6 +5,7 @@ Run from the project root:  nix-shell --run "python3 tests/run_tests.py"
 """
 import contextlib
 import io
+import json
 import os
 import subprocess
 import sys
@@ -56,17 +57,35 @@ for fx, region in (("card_layout", (288, 1291, 40, 1040)), ("profile_layout", (6
     check(f"{fx}: exactly one face", p["usable_faces"] == 1, f"{p['detector']} {p['face_scores']}")
 
 print("End-to-end with mock LLM")
-mock = subprocess.Popen([sys.executable, "tests/mock_llm.py"], stdout=subprocess.DEVNULL)
-time.sleep(1.5)
-env = dict(os.environ, LLM_ENABLED="1", LLM_URL="http://127.0.0.1:18080/v1")
-out = subprocess.run([sys.executable, "vet_profile.py", f"{FIX}/profile_layout.png"],
-                     capture_output=True, text=True, env=env).stdout.strip().splitlines()[-1]
-check("mock LLM DISLIKE is honoured", out == "DISLIKE 387 1704", out)
-mock.terminate()
-mock.wait()
-out = subprocess.run([sys.executable, "vet_profile.py", f"{FIX}/profile_layout.png"],
-                     capture_output=True, text=True, env=env).stdout.strip().splitlines()[-1]
-check("LLM down -> SKIP (no tap)", out == "SKIP", out)
+env = dict(os.environ, LLM_ENABLED="1", LLM_URL="http://127.0.0.1:18080/v1",
+           LLM_RETRIES="2", LLM_RETRY_DELAY="0.1")
+
+
+def run_vet():
+    """Vet the profile fixture; returns (last stdout line, report["llm"])."""
+    out = subprocess.run([sys.executable, "vet_profile.py", f"{FIX}/profile_layout.png"],
+                         capture_output=True, text=True, env=env).stdout.strip().splitlines()[-1]
+    with open(f"{FIX}/profile_layout.report.json") as f:
+        return out, json.load(f).get("llm", {})
+
+
+def start_mock(*args):
+    m = subprocess.Popen([sys.executable, "tests/mock_llm.py", *args], stdout=subprocess.DEVNULL)
+    time.sleep(1.5)
+    return m
+
+
+for fail_first, name in ((0, "mock LLM DISLIKE is honoured"),
+                         (1, "LLM fails once -> retried, DISLIKE honoured")):
+    mock = start_mock(str(fail_first))
+    out, llm = run_vet()
+    check(name, out == "DISLIKE 387 1704" and llm.get("attempts") == fail_first + 1,
+          f"{out} attempts={llm.get('attempts')}")
+    mock.terminate()
+    mock.wait()
+out, llm = run_vet()
+check("LLM down -> SKIP after 3 attempts (no tap)",
+      out == "SKIP" and "after 3 attempts" in llm.get("error", ""), f"{out} {llm.get('error')}")
 
 for f in os.listdir(FIX):  # tidy report artefacts
     if f.endswith((".report.json", ".faces.png")):

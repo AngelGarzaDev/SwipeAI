@@ -9,6 +9,7 @@ import base64
 import json
 import re
 import time
+import urllib.error
 import urllib.request
 
 import cv2
@@ -59,8 +60,8 @@ def _parse(text):
 
 
 def judge(photo, report, c):
-    """c = the [llm] config section. Returns dict(decision, reason, raw, seconds).
-    Raises on transport/parse error."""
+    """c = the [llm] config section. Returns dict(decision, reason, raw, seconds, attempts).
+    Raises once every attempt has failed."""
     prompt = c.get("prompt") or DEFAULT_PROMPT
     prompt = prompt.format(preferences=c.get("preferences", "(none given)"),
                            name=report.get("name"), age=report.get("age"),
@@ -80,10 +81,29 @@ def judge(photo, report, c):
         url += "/chat/completions"
     req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={
         "Content-Type": "application/json", "Authorization": f"Bearer {c.get('api_key') or 'none'}"})
-    t = time.time()
-    with urllib.request.urlopen(req, timeout=c.get("timeout", 120)) as r:
-        resp = json.load(r)
-    raw = resp["choices"][0]["message"]["content"]
-    decision, reason = _parse(raw)
-    return {"decision": decision, "reason": reason, "raw": raw,
-            "model": c["model"], "seconds": round(time.time() - t, 2)}
+
+    # Retry timeouts, connection errors, server errors and unparseable replies, waiting
+    # retry_delay, 2x retry_delay, ... between attempts. Client errors (bad URL/model/key)
+    # won't fix themselves, so they fail at once.
+    attempts = 1 + max(0, int(c.get("retries", 2)))
+    delay = float(c.get("retry_delay", 5))
+    for attempt in range(1, attempts + 1):
+        t = time.time()
+        try:
+            with urllib.request.urlopen(req, timeout=c.get("timeout", 120)) as r:
+                resp = json.load(r)
+            raw = resp["choices"][0]["message"]["content"]
+            decision, reason = _parse(raw)
+            return {"decision": decision, "reason": reason, "raw": raw, "model": c["model"],
+                    "seconds": round(time.time() - t, 2), "attempts": attempt}
+        except urllib.error.HTTPError as e:
+            if e.code < 500 and e.code not in (408, 429) or attempt == attempts:
+                raise
+            err = e
+        except Exception as e:  # noqa: BLE001 - timeouts, refused connections, bad replies
+            if attempt == attempts:
+                raise RuntimeError(f"{e} (after {attempts} attempts)") from e
+            err = e
+        wait = delay * 2 ** (attempt - 1)
+        print(f"DEBUG: LLM attempt {attempt}/{attempts} failed ({err}); retrying in {wait:g}s")
+        time.sleep(wait)
