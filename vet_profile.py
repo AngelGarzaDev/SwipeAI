@@ -6,6 +6,8 @@ Usage: python3 vet_profile.py <screenshot.png> [config.toml]
 The last line of stdout is machine readable:
     LIKE <x> <y>       profile passed the guidelines; tap the heart at x,y
     DISLIKE <x> <y>    profile failed; tap the X at x,y
+    SKIP               LLM failed; don't tap
+    LIMIT              Facebook's "daily limit for sending likes" page is showing
     NONE               no Dating card / buttons visible
 A JSON report is also written next to the screenshot (<name>.report.json).
 """
@@ -96,15 +98,36 @@ def find_buttons(img):
     return found, layout
 
 
-def ocr(img):
+def ocr(img, psm=6):
     try:
-        out = subprocess.run(["tesseract", "stdin", "stdout", "--psm", "6"],
+        out = subprocess.run(["tesseract", "stdin", "stdout", "--psm", str(psm)],
                              input=cv2.imencode(".png", img)[1].tobytes(),
                              capture_output=True, timeout=30)
         return out.stdout.decode("utf-8", "ignore").strip()
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         log(f"OCR unavailable: {e}")
         return ""
+
+
+DAILY_LIMIT_RE = re.compile(r"daily\s+limit", re.I)
+
+
+def daily_limit_reached(img, llm_cfg):
+    """Is this (non-swipe) screen Facebook's 'daily limit for sending likes' page?
+    Reads the screen text with OCR first; if that doesn't find it, asks the LLM."""
+    text = ocr(img, psm=3)
+    if DAILY_LIMIT_RE.search(text):
+        log("daily like limit message found by OCR")
+        return True
+    if not llm_judge.enabled(llm_cfg):
+        return False
+    try:
+        found, raw = llm_judge.is_daily_limit(img, llm_cfg)
+    except Exception as e:  # noqa: BLE001 - can't tell; treat as an ordinary non-swipe screen
+        log(f"LLM daily-limit check failed ({e})")
+        return False
+    log(f"LLM daily-limit check: {found} ({raw.strip()[:100]!r})")
+    return found
 
 
 YUNET = os.path.join(HERE, "models", "face_detection_yunet_2023mar.onnx")
@@ -220,6 +243,9 @@ def main():
 
     btn, layout = find_buttons(img)
     if layout is None:
+        if daily_limit_reached(img, llm_cfg):
+            print("LIMIT")
+            return
         log("Dating buttons not found (not on Dating swipe screen?)")
         print("NONE")
         return

@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -16,6 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 import cv2  # noqa: E402
+import numpy as np  # noqa: E402
 
 import config  # noqa: E402
 import vet_profile as vp  # noqa: E402
@@ -86,6 +88,35 @@ for fail_first, name in ((0, "mock LLM DISLIKE is honoured"),
 out, llm = run_vet()
 check("LLM down -> SKIP after 3 attempts (no tap)",
       out == "SKIP" and "after 3 attempts" in llm.get("error", ""), f"{out} {llm.get('error')}")
+
+print("Daily like limit page")
+# Stand-in for Facebook's limit page: the message drawn on a blank 1080x1920 screen.
+limit_png = os.path.join(tempfile.mkdtemp(), "limit_page.png")
+page = np.full((1920, 1080, 3), 255, np.uint8)
+for n, line in enumerate(["You've reached the daily limit", "for sending likes.",
+                          "Come back tomorrow to send more.", "Want to message a match?"]):
+    cv2.putText(page, line, (60, 800 + n * 80), cv2.FONT_HERSHEY_SIMPLEX, 1.6, (0, 0, 0), 3)
+cv2.imwrite(limit_png, page)
+
+
+def vet_screen(path, **extra):
+    return subprocess.run([sys.executable, "vet_profile.py", path], capture_output=True,
+                          text=True, env=dict(env, **extra)).stdout.strip().splitlines()[-1]
+
+
+out = vet_screen(limit_png, LLM_ENABLED="0")
+check("limit page read by OCR (no LLM) -> LIMIT", out == "LIMIT", out)
+out = vet_screen(f"{FIX}/home_screen.png", LLM_ENABLED="0")
+check("other screen, no LLM -> NONE", out == "NONE", out)
+for args, want, name in (((), "NONE", "LLM says not the limit page -> NONE"),
+                         (("0", "limit"), "LIMIT", "LLM says limit page -> LIMIT")):
+    mock = start_mock(*args)
+    out = vet_screen(f"{FIX}/home_screen.png")
+    check(name, out == want, out)
+    mock.terminate()
+    mock.wait()
+out = vet_screen(f"{FIX}/home_screen.png")
+check("LLM down during limit check -> NONE", out == "NONE", out)
 
 for f in os.listdir(FIX):  # tidy report artefacts
     if f.endswith((".report.json", ".faces.png")):

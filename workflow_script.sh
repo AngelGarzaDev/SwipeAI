@@ -165,9 +165,12 @@ sleep 6
 # 2. Navigate to the Dating swipe screen (verified visually by finding the buttons).
 navigate() {
     local probe="$RUN_DIR/nav/probe_$(date +%H%M%S).png"
+    local result
     for attempt in 1 2 3 4; do
         capture "$probe"
-        if [ "$(vet "$probe")" != "NONE" ]; then return 0; fi
+        result=$(vet "$probe")
+        [ "$result" = "LIMIT" ] && return 2
+        [ "$result" != "NONE" ] && return 0
         log "Not on Dating card screen (attempt $attempt); retrying deep link"
         $ADB shell cmd statusbar collapse >/dev/null 2>&1
         $ADB shell am start -a android.intent.action.VIEW -d "fb://dating" "$APP_PACKAGE" >/dev/null 2>&1
@@ -176,10 +179,14 @@ navigate() {
     return 1
 }
 
-if ! navigate; then
-    log "ERROR: could not reach the Dating swipe screen"
-    exit 1
-fi
+navigate
+case $? in
+    0) ;;
+    2) log "Daily like limit reached (Facebook says come back tomorrow); stopping"
+       exit 0 ;;
+    *) log "ERROR: could not reach the Dating swipe screen"
+       exit 1 ;;
+esac
 
 # 3. Vet (and optionally swipe) profiles.
 for i in $(seq 1 "$COUNT"); do
@@ -204,6 +211,9 @@ for i in $(seq 1 "$COUNT"); do
             ;;
         SKIP)
             log "[profile $i] LLM unavailable/failed - not tapping; stopping"
+            break ;;
+        LIMIT)
+            log "[profile $i] daily like limit reached (Facebook says come back tomorrow); stopping"
             break ;;
         NONE)
             log "[profile $i] no profile card visible (out of profiles or a popup?); stopping"

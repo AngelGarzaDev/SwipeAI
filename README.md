@@ -23,7 +23,7 @@ The project demonstrates a complete end-to-end loop: from screen capture and OCR
 
 The pipeline operates in a continuous loop:
 1. **Capture**: Screen capture from the Android device.
-2. **Detect**: Detect UI layouts (Card vs. Profile view) and interaction buttons.
+2. **Detect**: Detect UI layouts (Card vs. Profile view) and interaction buttons. If there are no buttons, check whether Facebook is showing its "daily limit for sending likes" page (OCR first, then the LLM); if so, the run ends.
 3. **Extract**: Parse text (Name, Age, Bio) and detect faces.
 4. **Vet**:
    - Apply hard rules (e.g., age, image quality).

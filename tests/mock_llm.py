@@ -1,6 +1,8 @@
 import json, http.server, sys
-# Optional argv[1]: number of initial requests to fail with HTTP 503 (to exercise retries).
+# argv[1]: number of initial requests to fail with HTTP 503 (to exercise retries).
+# argv[2]: "limit" to answer the daily-limit question with true (default false).
 fail_first = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+limit = len(sys.argv) > 2 and sys.argv[2] == "limit"
 class H(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         global fail_first
@@ -12,7 +14,11 @@ class H(http.server.BaseHTTPRequestHandler):
         c = b['messages'][0]['content']
         img = c[1]['image_url']['url']
         print(f"MOCK got path={self.path} model={b['model']} img_b64_len={len(img)} prompt_has_name={'Angel' in c[0]['text']}", flush=True)
-        out = {"choices":[{"message":{"content":'Sure! {"decision": "DISLIKE", "reason": "Bio advertises a domme service."}'}}]}
+        if '"daily_limit"' in c[0]['text']:
+            reply = json.dumps({"daily_limit": limit})
+        else:
+            reply = 'Sure! {"decision": "DISLIKE", "reason": "Bio advertises a domme service."}'
+        out = {"choices":[{"message":{"content":reply}}]}
         self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers()
         self.wfile.write(json.dumps(out).encode())
     def log_message(self, *a): pass

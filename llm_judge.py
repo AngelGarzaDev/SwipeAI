@@ -28,6 +28,13 @@ Text: {bio}
 Reply with ONLY a JSON object, no other text:
 {{"decision": "LIKE" or "DISLIKE", "reason": "<one short sentence>"}}"""
 
+LIMIT_PROMPT = """This is a screenshot of the Facebook Dating app.
+Does it show the message that the daily limit for sending likes has been reached
+(e.g. "You've reached the daily limit for sending likes. Come back tomorrow to send more.")?
+
+Reply with ONLY a JSON object, no other text:
+{"daily_limit": true or false}"""
+
 
 def enabled(c):
     """c = the [llm] config section."""
@@ -66,6 +73,35 @@ def judge(photo, report, c):
     prompt = prompt.format(preferences=c.get("preferences", "(none given)"),
                            name=report.get("name"), age=report.get("age"),
                            bio=report.get("bio") or "")
+    (decision, reason), raw, seconds, attempts = _ask(c, prompt, photo, _parse)
+    return {"decision": decision, "reason": reason, "raw": raw, "model": c["model"],
+            "seconds": seconds, "attempts": attempts}
+
+
+def _parse_limit(text):
+    m = re.search(r"\{.*\}", text, re.S)
+    if m:
+        try:
+            v = json.loads(m.group(0)).get("daily_limit")
+            if isinstance(v, bool):
+                return v
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    m = re.search(r"\b(true|false)\b", text.lower())
+    if m:
+        return m.group(1) == "true"
+    raise ValueError(f"unparseable LLM reply: {text[:200]!r}")
+
+
+def is_daily_limit(screen, c):
+    """Ask the LLM whether a (non-swipe) screenshot is the 'daily like limit' page.
+    Returns (bool, raw reply). Raises once every attempt has failed."""
+    found, raw, _, _ = _ask(c, LIMIT_PROMPT, screen, _parse_limit)
+    return found, raw
+
+
+def _ask(c, prompt, img, parse):
+    """Send prompt + image; returns (parse(reply), reply, seconds, attempts)."""
     body = {
         "model": c["model"],
         "temperature": c.get("temperature", 0.1),
@@ -73,7 +109,7 @@ def judge(photo, report, c):
         "messages": [{"role": "user", "content": [
             {"type": "text", "text": prompt},
             {"type": "image_url", "image_url": {
-                "url": "data:image/jpeg;base64," + _encode(photo, c.get("image_max_side", 768))}},
+                "url": "data:image/jpeg;base64," + _encode(img, c.get("image_max_side", 768))}},
         ]}],
     }
     url = c["url"].rstrip("/")
@@ -93,9 +129,7 @@ def judge(photo, report, c):
             with urllib.request.urlopen(req, timeout=c.get("timeout", 120)) as r:
                 resp = json.load(r)
             raw = resp["choices"][0]["message"]["content"]
-            decision, reason = _parse(raw)
-            return {"decision": decision, "reason": reason, "raw": raw, "model": c["model"],
-                    "seconds": round(time.time() - t, 2), "attempts": attempt}
+            return parse(raw), raw, round(time.time() - t, 2), attempt
         except urllib.error.HTTPError as e:
             if e.code < 500 and e.code not in (408, 429) or attempt == attempts:
                 raise

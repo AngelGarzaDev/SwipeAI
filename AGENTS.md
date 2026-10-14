@@ -50,6 +50,7 @@ Find the last log line starting with `[profile N]` before `=== workflow end ===`
 |---|---|---|
 | `## Run summary` with all rows LIKE/DISLIKE and `-n` rows | Success | Report the summary table to the user |
 | `LLM unavailable/failed - not tapping` | LLM server problem | Redo Step 2. Do not rerun until the curl works |
+| `daily like limit reached` | Facebook's daily like limit is used up | **Stop.** Report it. Do not rerun until tomorrow |
 | `no profile card visible` | Out of profiles, or a pop-up is covering the screen | **Stop.** Report it. Do not retry |
 | `ERROR: could not reach the Dating swipe screen` | Navigation failed | Rerun Step 3 once. Fails again → **stop** |
 | `analysis error` | Unexpected | **Stop.** Report the line |
