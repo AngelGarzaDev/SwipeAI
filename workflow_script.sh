@@ -8,18 +8,14 @@
 set -u
 cd "$(dirname "$0")"
 
-# Load environment variables from .env if it exists
+# All settings live in config.toml (environment variables override; see config.py).
 if [ -f .env ]; then
-    while IFS='=' read -r key value || [ -n "$key" ]; do
-        # Skip comments and empty lines
-        [[ "$key" =~ ^#.*$ ]] || [ -z "$key" ] && continue
-        # Remove potential carriage returns from Windows-style files
-        value=$(echo "$value" | tr -d '\r')
-        export "$key=$value"
-    done < .env
+    echo "ERROR: .env is no longer read. Move its settings into config.toml, then delete .env." >&2
+    exit 1
 fi
+CONFIG_VARS=$(python3 config.py --shell) || { echo "ERROR: could not read config.toml" >&2; exit 1; }
+eval "$CONFIG_VARS"
 
-WAYDROID_MODE="${WAYDROID_MODE:-0}"
 APP_PACKAGE="com.facebook.katana"
 SHOT_DIR="./screenshots/runs"
 LOG_FILE="./execution_log.md"
@@ -41,7 +37,7 @@ done
 select_device() {
     if [ "$WAYDROID_MODE" = "1" ]; then
         if [ -z "${ADB_DEVICE:-}" ]; then
-            echo "ERROR: WAYDROID_MODE=1 requires ADB_DEVICE in .env (e.g. 192.168.240.112:5555)." >&2
+            echo "ERROR: Waydroid mode requires adb_device in config.toml (e.g. \"192.168.240.112:5555\")." >&2
             exit 1
         fi
         DEVICE="$ADB_DEVICE"
@@ -107,7 +103,7 @@ start_waydroid() {
     [ "$WAYDROID_MODE" = "1" ] || return 0
     if device_ready; then log "Waydroid device $DEVICE already ready"; return 0; fi
     if ! command -v waydroid >/dev/null 2>&1; then
-        log "ERROR: 'waydroid' not found on PATH. Install Waydroid or set WAYDROID_MODE=0."
+        log "ERROR: 'waydroid' not found on PATH. Install Waydroid or set waydroid = false in config.toml."
         exit 1
     fi
     if [ "$(waydroid status 2>/dev/null | awk '/^Session:/ {print $2}')" != "RUNNING" ]; then
@@ -129,9 +125,8 @@ $ADB connect "$DEVICE" >/dev/null 2>&1
 
 # Pre-flight: fail fast (10s timeout) if the LLM server is down, before touching the phone.
 check_llm() {
-    [ "${LLM_ENABLED:-1}" = 0 ] && return 0
-    local url="${LLM_URL:-http://192.168.1.110:9931/v1}"
-    local model="${LLM_MODEL:-gemma-4-26B-A4B-it}"
+    [ "$LLM_ENABLED" = 0 ] && return 0
+    local url="${LLM_URL%/}" model="$LLM_MODEL"
     if curl -s -m 10 "$url/models" | grep -qF "\"$model\""; then
         log "LLM reachable at $url ($model)"
         return 0
@@ -142,11 +137,9 @@ check_llm() {
 check_llm
 
 # Lock the display to a fixed portrait size so screenshots/templates are consistent.
-# Restored on exit unless KEEP_DISPLAY=1.
-SCREEN_SIZE="${SCREEN_SIZE:-1080x1920}"
-SCREEN_DENSITY="${SCREEN_DENSITY:-320}"
+# Restored on exit unless keep_display (KEEP_DISPLAY=1).
 restore_display() {
-    if [ "${KEEP_DISPLAY:-0}" != 1 ]; then
+    if [ "$KEEP_DISPLAY" != 1 ]; then
         $ADB shell wm size reset; $ADB shell wm density reset
         log "Display restored"
     fi

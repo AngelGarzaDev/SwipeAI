@@ -1,0 +1,57 @@
+# SwipeAI configuration - the only file you need to edit.
+#
+# Settings marked "env: NAME" can also be overridden for a single run with an
+# environment variable, e.g.  LLM_ENABLED=0 ./workflow_script.sh
+
+[device]
+# ADB address used in Waydroid mode and as the default choice in the device picker.
+# Leave blank to pick a device each run. Required when waydroid = true.
+# Example: "192.168.240.112:5555"
+adb_device = ""                 # env: ADB_DEVICE
+
+# true  = Waydroid: open Waydroid BEFORE running the script (the container must be
+#         started manually, see README). The script starts the session if needed.
+# false = physical phone/emulator you manage yourself.
+waydroid = false                # env: WAYDROID_MODE
+
+# The display is locked to this size/density during a run so screenshots match the
+# button templates. Restored afterwards unless keep_display = true.
+screen_size = "1080x1920"       # env: SCREEN_SIZE
+screen_density = 320            # env: SCREEN_DENSITY
+keep_display = false            # env: KEEP_DISPLAY
+
+[llm]
+# Local vision LLM (OpenAI-compatible endpoint). Only called for profiles that pass [rules].
+enabled = true                  # env: LLM_ENABLED
+url = "http://192.168.1.110:9931/v1"   # env: LLM_URL
+model = "gemma-4-26B-A4B-it"    # env: LLM_MODEL
+api_key = ""                    # env: LLM_API_KEY (only for hosted services)
+preferences = """
+Prefer a clear, recent photo of one person (not a group, not heavily filtered, \
+not a stock/celebrity image). Prefer a friendly, genuine bio. Reject profiles \
+that look like spam, scams, or sex-work advertising."""
+image_max_side = 768
+temperature = 0.1
+timeout = 120
+max_tokens = 1024
+# What to do when the LLM fails: "skip" = don't tap and stop the run;
+# anything else = keep the rules-based decision.
+on_error = "skip"
+
+[rules]
+# A profile is LIKED only if every rule passes (and then the LLM agrees).
+age_min = 21
+age_max = 40
+require_age_detected = true
+require_face_in_photo = true
+min_face_area_ratio = 0.002
+min_face_score = 0.6
+min_photo_sharpness = 15.0
+min_photo_brightness = 40
+max_photo_brightness = 230
+bio_blocklist = [
+  "onlyfans", "only fans", "cashapp", "cash app", "venmo",
+  "telegram", "snap me", "sugar daddy", "no hookups",
+]
+bio_required_any = []
+name_blocklist = []

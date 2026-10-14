@@ -5,7 +5,6 @@ Run from the project root:  nix-shell --run "python3 tests/run_tests.py"
 """
 import contextlib
 import io
-import json
 import os
 import subprocess
 import sys
@@ -17,6 +16,7 @@ sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 import cv2  # noqa: E402
 
+import config  # noqa: E402
 import vet_profile as vp  # noqa: E402
 
 FIX = os.path.join(ROOT, "tests", "fixtures")
@@ -49,7 +49,7 @@ for text, exp in [("Hannah, 25\nbio", ("Hannah", 25)), ("Katy\u2018 45 Second Lo
     check(repr(text), got == exp, f"-> {got}")
 
 print("Face detection (YuNet)")
-g = json.load(open("guidelines.json"))
+g = config.load()["rules"]
 for fx, region in (("card_layout", (288, 1291, 40, 1040)), ("profile_layout", (65, 1361, 0, 1080))):
     y0, y1, x0, x1 = region
     p = vp.analyze_photo(cv2.imread(f"{FIX}/{fx}.png")[y0:y1, x0:x1], g)

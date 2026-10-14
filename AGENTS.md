@@ -7,7 +7,7 @@ Working directory: `/home/angel/pi/dater`. Every command must start with `nix-sh
 
 ## Hard rules
 1. Never tap the phone yourself (`adb shell input ...`). Only `workflow_script.sh` taps.
-2. Never edit `guidelines.json`, `*.py`, `*.sh` or anything in `templates/` or `models/`.
+2. Never edit `config.toml`, `*.py`, `*.sh` or anything in `templates/` or `models/`.
 3. Never delete anything in `screenshots/runs/` or `execution_log.md`.
 4. Never change anything on the host outside this directory.
 5. If something is not covered below: **stop and report**. Do not improvise.
@@ -62,7 +62,7 @@ Always include:
 3. Anything unusual: a profile shown as `?, ?` (age not read), any `SKIP`, or a profile that also appeared in an earlier run.
 
 ## Reference (read only if needed)
-- Decision order: buttons found → name/age/bio read → rules in `guidelines.json` → LLM → tap.
+- Decision order: buttons found → name/age/bio read → `[rules]` in `config.toml` → LLM → tap.
 - Profiles that fail a rule are disliked **without** asking the LLM. That is expected.
 - `KEEP_DISPLAY=1` keeps the phone at 1080x1920. To restore the normal screen afterwards:
   `adb shell wm size reset && adb shell wm density reset`

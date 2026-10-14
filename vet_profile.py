@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Vet a Facebook Dating profile screenshot.
 
-Usage: python3 vet_profile.py <screenshot.png> [guidelines.json]
+Usage: python3 vet_profile.py <screenshot.png> [config.toml]
 
 The last line of stdout is machine readable:
     LIKE <x> <y>       profile passed the guidelines; tap the heart at x,y
@@ -18,6 +18,7 @@ import sys
 import cv2
 import numpy as np
 
+import config
 import llm_judge
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -210,8 +211,8 @@ def main():
         print(__doc__)
         sys.exit(1)
     shot = sys.argv[1]
-    gpath = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "guidelines.json")
-    g = json.load(open(gpath))
+    cfg = config.load(sys.argv[2] if len(sys.argv) > 2 else None)
+    g, llm_cfg = cfg["rules"], cfg["llm"]
     img = cv2.imread(shot)
     if img is None:
         print("ERROR")
@@ -251,9 +252,9 @@ def main():
     report["decided_by"] = "rules"
 
     # Stage 2: local vision LLM judgement, only for profiles that passed the rules.
-    if not reasons and llm_judge.enabled(g):
+    if not reasons and llm_judge.enabled(llm_cfg):
         try:
-            j = llm_judge.judge(photo, report, g)
+            j = llm_judge.judge(photo, report, llm_cfg)
             report["llm"] = j
             report["decision"] = j["decision"]
             report["decided_by"] = "llm"
@@ -262,7 +263,7 @@ def main():
             log(f"LLM ({j['model']}, {j['seconds']}s): {j['decision']} - {j['reason']}")
         except Exception as e:  # noqa: BLE001 - any LLM failure must not tap blindly
             report["llm"] = {"error": str(e)}
-            on_err = g.get("llm", {}).get("on_error", "skip")
+            on_err = llm_cfg.get("on_error", "skip")
             log(f"LLM error ({e}); on_error={on_err}")
             if on_err == "skip":
                 report["decision"] = "SKIP"

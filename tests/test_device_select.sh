@@ -63,7 +63,7 @@ run_case "2 devices, no terminal -> error" 1 "no terminal to ask" -- \
     "R5CX41TYPSR            device usb:1-2 model:SM_S928U transport_id:31" \
     "192.168.240.112:5555   device model:WayDroid_x86_64_Device transport_id:1"
 
-run_case "Waydroid mode without ADB_DEVICE -> error" 1 "requires ADB_DEVICE" WAYDROID_MODE=1 -- \
+run_case "Waydroid mode without ADB_DEVICE -> error" 1 "requires adb_device" WAYDROID_MODE=1 -- \
     "192.168.240.112:5555   device model:WayDroid_x86_64_Device transport_id:1"
 
 run_case "Waydroid mode uses ADB_DEVICE, no picker" 0 "DEVICE=192.168.240.112:5555" WAYDROID_MODE=1 ADB_DEVICE=192.168.240.112:5555 -- \

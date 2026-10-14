@@ -54,17 +54,25 @@ The pipeline operates in a continuous loop:
 sudo waydroid container start
 waydroid session start            # needs a graphical session
 waydroid status                   # Container should be RUNNING, not FROZEN
-adb connect <ADB_DEVICE>          # e.g. 192.168.240.112:5555
+adb connect <adb_device>          # e.g. 192.168.240.112:5555
 ```
-Then set `WAYDROID_MODE=1` in `.env`. With this set, the script checks for the device, starts the session if it is not running, and waits up to 30 seconds for ADB. If the device still isn't ready it exits with an error. Set `WAYDROID_MODE=0` for a physical phone or emulator you manage yourself.
+Then set `waydroid = true` and `adb_device` under `[device]` in `config.toml`. With this set, the script checks for the device, starts the session if it is not running, and waits up to 30 seconds for ADB. If the device still isn't ready it exits with an error. Leave `waydroid = false` for a physical phone or emulator you manage yourself.
 
 ### Choosing a device
 The script never assumes an address. Each run:
 - **One** online device in `adb devices`: it is used automatically.
-- **Several** online devices: a numbered menu asks which one to use. Enter picks the `ADB_DEVICE` default if set.
-- **Waydroid mode** (`WAYDROID_MODE=1`): uses `ADB_DEVICE` from `.env` and skips the menu. It is required in this mode.
+- **Several** online devices: a numbered menu asks which one to use. Enter picks the `adb_device` default if set.
+- **Waydroid mode** (`waydroid = true`): uses `adb_device` and skips the menu. It is required in this mode.
 
 In a non-interactive run (no terminal) with several devices, the script exits with an error. Run it from a terminal, or use Waydroid mode.
+
+### Configuration
+Everything is set in one file, **`config.toml`**, which has comments for each setting:
+- `[device]`: ADB device, Waydroid mode, locked screen size/density.
+- `[llm]`: LLM endpoint, model, your preferences prompt.
+- `[rules]`: age range, photo-quality thresholds, blocked words.
+
+Settings marked `env:` in the file can be overridden for a single run, e.g. `LLM_ENABLED=0 ./workflow_script.sh`.
 
 ### Quick Start
 1. Clone the repository:
@@ -72,15 +80,16 @@ In a non-interactive run (no terminal) with several devices, the script exits wi
    git clone https://github.com/your-username/SwipeAI.git
    cd SwipeAI
    ```
-2. Enter the development environment:
+2. Edit `config.toml` (at least `[llm] url` and `model`).
+3. Enter the development environment:
    ```bash
    nix-shell
    ```
-3. Run a dry run (vets 1 profile without tapping):
+4. Run a dry run (vets 1 profile without tapping):
    ```bash
    ./workflow_script.sh
    ```
-4. Start swiping (e.g., 10 profiles):
+5. Start swiping (e.g., 10 profiles):
    ```bash
    ./workflow_script.sh --swipe -n 10
    ```

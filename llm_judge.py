@@ -3,12 +3,10 @@
 Talks to any OpenAI-compatible chat endpoint (Ollama, llama.cpp server,
 LM Studio, vLLM...). Standard library only.
 
-Config lives in guidelines.json under "llm"; environment variables
-LLM_URL / LLM_MODEL / LLM_API_KEY override it.
+Config is the [llm] section of config.toml (config.py applies env overrides).
 """
 import base64
 import json
-import os
 import re
 import time
 import urllib.request
@@ -30,19 +28,9 @@ Reply with ONLY a JSON object, no other text:
 {{"decision": "LIKE" or "DISLIKE", "reason": "<one short sentence>"}}"""
 
 
-def _cfg(g):
-    c = dict(g.get("llm", {}))
-    c["url"] = os.environ.get("LLM_URL", c.get("url", ""))
-    c["model"] = os.environ.get("LLM_MODEL", c.get("model", ""))
-    c["api_key"] = os.environ.get("LLM_API_KEY", c.get("api_key", "none"))
-    if os.environ.get("LLM_ENABLED") is not None:
-        c["enabled"] = os.environ["LLM_ENABLED"] not in ("0", "false", "")
-    return c
-
-
-def enabled(g):
-    c = _cfg(g)
-    return bool(c.get("enabled") and c["url"] and c["model"])
+def enabled(c):
+    """c = the [llm] config section."""
+    return bool(c.get("enabled") and c.get("url") and c.get("model"))
 
 
 def _encode(img, max_side):
@@ -70,9 +58,9 @@ def _parse(text):
     raise ValueError(f"unparseable LLM reply: {text[:200]!r}")
 
 
-def judge(photo, report, g):
-    """Returns dict(decision, reason, raw, seconds). Raises on transport/parse error."""
-    c = _cfg(g)
+def judge(photo, report, c):
+    """c = the [llm] config section. Returns dict(decision, reason, raw, seconds).
+    Raises on transport/parse error."""
     prompt = c.get("prompt") or DEFAULT_PROMPT
     prompt = prompt.format(preferences=c.get("preferences", "(none given)"),
                            name=report.get("name"), age=report.get("age"),
@@ -91,7 +79,7 @@ def judge(photo, report, g):
     if not url.endswith("/chat/completions"):
         url += "/chat/completions"
     req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={
-        "Content-Type": "application/json", "Authorization": f"Bearer {c['api_key']}"})
+        "Content-Type": "application/json", "Authorization": f"Bearer {c.get('api_key') or 'none'}"})
     t = time.time()
     with urllib.request.urlopen(req, timeout=c.get("timeout", 120)) as r:
         resp = json.load(r)
